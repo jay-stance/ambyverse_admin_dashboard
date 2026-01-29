@@ -1,0 +1,285 @@
+'use client';
+
+import React, { useState, useEffect } from 'react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
+import { Skeleton } from '@/components/ui/skeleton';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import { 
+  History, 
+  Search,
+  Calendar,
+  User,
+  Activity,
+  LogIn,
+  Heart,
+  Link2,
+  ClipboardList,
+  Flame,
+} from 'lucide-react';
+import { UserAction } from '@/lib/types';
+
+// Mock data
+const mockActions: UserAction[] = [
+  {
+    id: '1',
+    user_id: '1',
+    user_name: 'Sarah Johnson',
+    user_email: 'sarah.j@example.com',
+    action_type: 'pain_logged',
+    action_at: '2024-11-20T14:30:00Z',
+    action_date: '2024-11-20',
+    metadata: { pain_level: 8, is_crisis: true },
+  },
+  {
+    id: '2',
+    user_id: '2',
+    user_name: 'Dr. Michael Chen',
+    user_email: 'dr.chen@hospital.com',
+    action_type: 'user_logged_in',
+    action_at: '2024-11-20T09:00:00Z',
+    action_date: '2024-11-20',
+  },
+  {
+    id: '3',
+    user_id: '3',
+    user_name: 'Jennifer Martinez',
+    user_email: 'jennifer.m@example.com',
+    action_type: 'connection_accepted',
+    action_at: '2024-11-19T16:00:00Z',
+    action_date: '2024-11-19',
+    metadata: { connection_with: 'Sarah Johnson' },
+  },
+  {
+    id: '4',
+    user_id: '4',
+    user_name: 'David Williams',
+    user_email: 'david.w@example.com',
+    action_type: 'task_completed',
+    action_at: '2024-11-19T12:00:00Z',
+    action_date: '2024-11-19',
+    metadata: { task_title: 'Take Hydroxyurea' },
+  },
+  {
+    id: '5',
+    user_id: '1',
+    user_name: 'Sarah Johnson',
+    user_email: 'sarah.j@example.com',
+    action_type: 'streak_updated',
+    action_at: '2024-11-18T10:00:00Z',
+    action_date: '2024-11-18',
+    metadata: { streak_count: 15, item: 'Daily Pain Log' },
+  },
+  {
+    id: '6',
+    user_id: '5',
+    user_name: 'Emily Brown',
+    user_email: 'emily.b@clinic.com',
+    action_type: 'user_logged_in',
+    action_at: '2024-11-18T08:30:00Z',
+    action_date: '2024-11-18',
+  },
+];
+
+const actionConfig: Record<string, { icon: React.ElementType; label: string; color: string }> = {
+  pain_logged: { icon: Heart, label: 'Pain Logged', color: 'bg-red-100 text-red-700' },
+  user_logged_in: { icon: LogIn, label: 'Logged In', color: 'bg-blue-100 text-blue-700' },
+  connection_accepted: { icon: Link2, label: 'Connection Accepted', color: 'bg-green-100 text-green-700' },
+  task_completed: { icon: ClipboardList, label: 'Task Completed', color: 'bg-purple-100 text-purple-700' },
+  streak_updated: { icon: Flame, label: 'Streak Updated', color: 'bg-orange-100 text-orange-700' },
+  default: { icon: Activity, label: 'Action', color: 'bg-gray-100 text-gray-700' },
+};
+
+function LoadingSkeleton() {
+  return (
+    <div className="space-y-4">
+      {[...Array(6)].map((_, i) => (
+        <Skeleton key={i} className="h-16 w-full" />
+      ))}
+    </div>
+  );
+}
+
+export default function ActivityLogsPage() {
+  const [actions, setActions] = useState<UserAction[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
+  const [typeFilter, setTypeFilter] = useState('all');
+
+  useEffect(() => {
+    setTimeout(() => {
+      setActions(mockActions);
+      setLoading(false);
+    }, 500);
+  }, []);
+
+  const actionTypes = Array.from(new Set(actions.map(a => a.action_type)));
+
+  const filteredActions = actions.filter((action) => {
+    const matchesSearch = 
+      action.user_name?.toLowerCase().includes(search.toLowerCase()) ||
+      action.user_email?.toLowerCase().includes(search.toLowerCase());
+    const matchesType = typeFilter === 'all' || action.action_type === typeFilter;
+    return matchesSearch && matchesType;
+  });
+
+  const formatDateTime = (dateString: string) => {
+    return new Date(dateString).toLocaleString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  };
+
+  const stats = {
+    total: actions.length,
+    today: actions.filter(a => a.action_date === new Date().toISOString().split('T')[0]).length,
+    uniqueUsers: new Set(actions.map(a => a.user_id)).size,
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <History className="h-5 w-5" />
+            Activity Logs
+          </CardTitle>
+          <CardDescription>
+            Audit trail of all user actions on the platform
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {/* Stats */}
+          <div className="grid grid-cols-3 gap-4 mb-6">
+            <div className="p-4 bg-muted rounded-lg text-center">
+              <p className="text-2xl font-bold">{stats.total}</p>
+              <p className="text-sm text-muted-foreground">Total Actions</p>
+            </div>
+            <div className="p-4 bg-green-50 rounded-lg text-center">
+              <p className="text-2xl font-bold text-green-700">{stats.today}</p>
+              <p className="text-sm text-green-600">Today</p>
+            </div>
+            <div className="p-4 bg-blue-50 rounded-lg text-center">
+              <p className="text-2xl font-bold text-blue-700">{stats.uniqueUsers}</p>
+              <p className="text-sm text-blue-600">Unique Users</p>
+            </div>
+          </div>
+
+          {/* Filters */}
+          <div className="flex flex-col sm:flex-row gap-4">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search by user name or email..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="pl-10"
+              />
+            </div>
+            <Select value={typeFilter} onValueChange={setTypeFilter}>
+              <SelectTrigger className="w-full sm:w-48">
+                <SelectValue placeholder="Filter by type" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Actions</SelectItem>
+                {actionTypes.map(type => (
+                  <SelectItem key={type} value={type}>
+                    {actionConfig[type]?.label || type}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Activity Log Table */}
+      <Card>
+        <CardContent className="p-0">
+          {loading ? (
+            <div className="p-6">
+              <LoadingSkeleton />
+            </div>
+          ) : filteredActions.length === 0 ? (
+            <div className="py-12 text-center text-muted-foreground">
+              No activity logs found matching your criteria.
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>User</TableHead>
+                    <TableHead>Action</TableHead>
+                    <TableHead>Details</TableHead>
+                    <TableHead>Timestamp</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredActions.map((action) => {
+                    const config = actionConfig[action.action_type] || actionConfig.default;
+                    const ActionIcon = config.icon;
+
+                    return (
+                      <TableRow key={action.id}>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <User className="h-4 w-4 text-muted-foreground" />
+                            <div>
+                              <p className="font-medium">{action.user_name}</p>
+                              <p className="text-xs text-muted-foreground">{action.user_email}</p>
+                            </div>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <Badge className={config.color}>
+                            <ActionIcon className="h-3 w-3 mr-1" />
+                            {config.label}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          {action.metadata ? (
+                            <code className="text-xs bg-muted px-2 py-1 rounded">
+                              {JSON.stringify(action.metadata)}
+                            </code>
+                          ) : (
+                            <span className="text-muted-foreground">-</span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                            <Calendar className="h-3 w-3" />
+                            {formatDateTime(action.action_at)}
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
