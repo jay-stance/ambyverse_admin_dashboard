@@ -3,6 +3,7 @@
 import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useAuth } from '@/context/AuthContext';
 import { cn } from '@/lib/utils';
 import {
   LayoutDashboard,
@@ -51,6 +52,7 @@ const system = [
 
 export function Sidebar({ isOpen, onClose }: SidebarProps) {
   const pathname = usePathname();
+  const { user } = useAuth();
 
   const NavLink = ({ item }: { item: typeof navigation[0] }) => {
     const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
@@ -72,6 +74,35 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
     );
   };
 
+
+
+  // Helper to check permission
+  const hasPermission = (requiredPermission?: string) => {
+    if (!requiredPermission) return true;
+    const userPermissions = user?.permissions || [];
+    return userPermissions.includes(requiredPermission);
+  };
+
+  // Filter items
+  const filteredNavigation = navigation.filter(item => {
+    if (item.name === 'Overview') return true;
+    if (item.name === 'Users' || item.name === 'Verify') return hasPermission('manage_users');
+    if (item.name === 'Analytics' || item.name === 'Reports') return hasPermission('view_logs');
+    if (item.name === 'Broadcast') return hasPermission('manage_content');
+    return true;
+  });
+
+  const filteredManagement = management.filter(item => {
+    if (item.name === 'Connections' || item.name === 'Tasks') return hasPermission('manage_users');
+    if (item.name === 'Streakable Items') return hasPermission('manage_content');
+    if (item.name === 'Pain Logs' || item.name === 'Activity Logs') return hasPermission('view_logs');
+    return true;
+  });
+
+  const filteredSystem = system.filter(item => {
+    return true;
+  });
+
   const sidebarContent = (
     <>
       {/* Logo */}
@@ -91,27 +122,29 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
           <p className="px-3 py-2 text-xs font-semibold text-sidebar-foreground/50 uppercase tracking-wider">
             Main
           </p>
-          {navigation.map((item) => (
+          {filteredNavigation.map((item) => (
             <NavLink key={item.name} item={item} />
           ))}
         </div>
 
         {/* Management */}
-        <div className="mt-6 space-y-1">
-          <p className="px-3 py-2 text-xs font-semibold text-sidebar-foreground/50 uppercase tracking-wider">
-            Management
-          </p>
-          {management.map((item) => (
-            <NavLink key={item.name} item={item} />
-          ))}
-        </div>
+        {filteredManagement.length > 0 && (
+            <div className="mt-6 space-y-1">
+            <p className="px-3 py-2 text-xs font-semibold text-sidebar-foreground/50 uppercase tracking-wider">
+                Management
+            </p>
+            {filteredManagement.map((item) => (
+                <NavLink key={item.name} item={item} />
+            ))}
+            </div>
+        )}
 
         {/* System */}
         <div className="mt-6 space-y-1">
           <p className="px-3 py-2 text-xs font-semibold text-sidebar-foreground/50 uppercase tracking-wider">
             System
           </p>
-          {system.map((item) => (
+          {filteredSystem.map((item) => (
             <NavLink key={item.name} item={item} />
           ))}
         </div>

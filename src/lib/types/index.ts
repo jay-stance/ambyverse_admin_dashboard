@@ -1,4 +1,13 @@
 // User Types
+export interface AdminRole {
+  id: string;
+  name: string;
+  description?: string;
+  permissions: string[];
+  created_at: string;
+  updated_at: string;
+}
+
 export type Role = 'warrior' | 'guardian' | 'caregiver' | 'user' | 'admin';
 export type UserStatus = 'active' | 'inactive' | 'suspended';
 
@@ -16,6 +25,8 @@ export interface User {
   medical_license?: string;
   organization_name?: string;
   organization_type?: string;
+  admin_role_id?: string;
+  permissions?: string[];
   created_at: string;
   updated_at?: string;
 }
@@ -217,6 +228,18 @@ export interface PaginatedResponse<T> {
   page: number;
   limit: number;
   totalPages: number;
+}
+
+// Report Types
+export interface Report {
+  id: string;
+  name: string;
+  type: string;
+  format: string;
+  status: 'pending' | 'completed' | 'failed';
+  result_data?: any;
+  created_at: string;
+  size?: string; // Optional, computed on frontend or backend
 }
 
 export interface ApiError {

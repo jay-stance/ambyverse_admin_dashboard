@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -25,6 +25,7 @@ import {
   TrendingUp,
   Users,
   Activity,
+  AlertCircle
 } from 'lucide-react';
 
 const reportTypes = [
@@ -81,19 +82,47 @@ const recentReports = [
   },
 ];
 
+import { reportsApi } from '@/lib/api/admin';
+import { Report } from '@/lib/types';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+
 const formatIcons: Record<string, React.ElementType> = {
   PDF: File,
   Excel: FileSpreadsheet,
   CSV: FileText,
+  pdf: File,
+  excel: FileSpreadsheet,
+  csv: FileText,
 };
 
 export default function ReportsPage() {
   const [reportType, setReportType] = useState('');
-  const [format, setFormat] = useState('pdf');
+  const [format, setFormat] = useState('csv');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [generating, setGenerating] = useState(false);
-  const [generated, setGenerated] = useState(false);
+  
+  const [successMsg, setSuccessMsg] = useState<string | null>(null);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  
+  const [reports, setReports] = useState<Report[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const fetchReports = async () => {
+    try {
+      const data = await reportsApi.getReports();
+      setReports(Array.isArray(data) ? data : []);
+    } catch (error) {
+       console.error(error);
+       setReports([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchReports();
+  }, []);
 
   const selectedReport = reportTypes.find(r => r.id === reportType);
 
@@ -101,12 +130,52 @@ export default function ReportsPage() {
     if (!reportType || !startDate || !endDate) return;
     
     setGenerating(true);
-    // Simulate report generation
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    setGenerating(false);
-    setGenerated(true);
-    
-    setTimeout(() => setGenerated(false), 3000);
+    try {
+      await reportsApi.createReport(reportType, format, startDate, endDate);
+      setSuccessMsg("Report generated successfully");
+      fetchReports();
+      // Reset form
+      setReportType('');
+      setStartDate('');
+      setEndDate('');
+    } catch (error) {
+      setErrorMsg("Failed to generate report");
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  const handleDownload = async (report: Report) => {
+    try {
+      const data = await reportsApi.downloadReport(report.id, report.format);
+      
+      if (report.format.toLowerCase() === 'csv' && data instanceof Blob) {
+        const url = window.URL.createObjectURL(data);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${report.name}.csv`;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+      } else {
+        // Handle JSON or others
+        const jsonString = JSON.stringify(data, null, 2);
+        const blob = new Blob([jsonString], { type: 'application/json' });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${report.name}.json`;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+      }
+      
+      // toast({ title: "Downloading", description: "Your download should start shortly" });
+    } catch (error) {
+      setErrorMsg("Download failed");
+    }
   };
 
   const formatDate = (dateString: string) => {
@@ -133,6 +202,21 @@ export default function ReportsPage() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
+          {successMsg && (
+            <Alert className="bg-green-50 text-green-700 border-green-200">
+              <CheckCircle2 className="h-4 w-4" />
+              <AlertTitle>Success</AlertTitle>
+              <AlertDescription>{successMsg}</AlertDescription>
+            </Alert>
+          )}
+          {errorMsg && (
+            <Alert variant="destructive">
+              <AlertCircle className="h-4 w-4" />
+              <AlertTitle>Error</AlertTitle>
+              <AlertDescription>{errorMsg}</AlertDescription>
+            </Alert>
+          )}
+
           {/* Report Type Selection */}
           <div className="space-y-2">
             <Label>Report Type</Label>
@@ -188,9 +272,8 @@ export default function ReportsPage() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="pdf">PDF Document</SelectItem>
-                  <SelectItem value="excel">Excel Spreadsheet</SelectItem>
                   <SelectItem value="csv">CSV File</SelectItem>
+                  <SelectItem value="json">JSON Data</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -208,11 +291,6 @@ export default function ReportsPage() {
                 <Loader2 className="h-4 w-4 animate-spin" />
                 Generating Report...
               </>
-            ) : generated ? (
-              <>
-                <CheckCircle2 className="h-4 w-4" />
-                Report Generated! Downloading...
-              </>
             ) : (
               <>
                 <Download className="h-4 w-4" />
@@ -220,12 +298,6 @@ export default function ReportsPage() {
               </>
             )}
           </Button>
-
-          {selectedReport && (
-            <p className="text-sm text-muted-foreground text-center">
-              Selected: <strong>{selectedReport.name}</strong>
-            </p>
-          )}
         </CardContent>
       </Card>
 
@@ -242,37 +314,51 @@ export default function ReportsPage() {
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
-            {recentReports.map((report) => {
-              const FormatIcon = formatIcons[report.format] || FileText;
-              
-              return (
-                <div
-                  key={report.id}
-                  className="flex items-center justify-between p-4 border rounded-lg"
-                >
-                  <div className="flex items-center gap-4">
-                    <div className="p-2 bg-muted rounded-lg">
-                      <FormatIcon className="h-5 w-5 text-muted-foreground" />
+            {loading ? (
+                <div className="text-center py-4">Loading history...</div>
+            ) : reports.length === 0 ? (
+                <div className="text-center py-4 text-muted-foreground">No reports generated yet.</div>
+            ) : (
+                reports.map((report) => {
+                const FormatIcon = formatIcons[report.format] || FileText;
+                
+                return (
+                    <div
+                    key={report.id}
+                    className="flex items-center justify-between p-4 border rounded-lg"
+                    >
+                    <div className="flex items-center gap-4">
+                        <div className="p-2 bg-muted rounded-lg">
+                        <FormatIcon className="h-5 w-5 text-muted-foreground" />
+                        </div>
+                        <div>
+                        <p className="font-medium">{report.name}</p>
+                        <div className="flex items-center gap-3 text-sm text-muted-foreground">
+                            <span className="flex items-center gap-1">
+                            <Calendar className="h-3 w-3" />
+                            {formatDate(report.created_at)}
+                            </span>
+                            <Badge variant="outline">{report.format.toUpperCase()}</Badge>
+                            <Badge variant={report.status === 'completed' ? 'default' : 'secondary'}>
+                                {report.status}
+                            </Badge>
+                        </div>
+                        </div>
                     </div>
-                    <div>
-                      <p className="font-medium">{report.name}</p>
-                      <div className="flex items-center gap-3 text-sm text-muted-foreground">
-                        <span className="flex items-center gap-1">
-                          <Calendar className="h-3 w-3" />
-                          {formatDate(report.generated_at)}
-                        </span>
-                        <Badge variant="outline">{report.format}</Badge>
-                        <span>{report.size}</span>
-                      </div>
+                    <Button 
+                        variant="outline" 
+                        size="sm" 
+                        className="gap-2"
+                        onClick={() => handleDownload(report)}
+                        disabled={report.status !== 'completed'}
+                    >
+                        <Download className="h-4 w-4" />
+                        Download
+                    </Button>
                     </div>
-                  </div>
-                  <Button variant="outline" size="sm" className="gap-2">
-                    <Download className="h-4 w-4" />
-                    Download
-                  </Button>
-                </div>
-              );
-            })}
+                );
+                })
+            )}
           </div>
         </CardContent>
       </Card>

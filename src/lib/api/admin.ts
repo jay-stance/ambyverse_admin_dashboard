@@ -1,5 +1,5 @@
 import api from './axios';
-import { User, PaginatedResponse, DashboardStats, StreakableItem, UserAction, Connection, TaskRequest, PainLog, AnalyticsData, VerificationRequest } from '@/lib/types';
+import { User, PaginatedResponse, DashboardStats, StreakableItem, UserAction, Connection, TaskRequest, PainLog, AnalyticsData, VerificationRequest, AdminRole, Report } from '@/lib/types';
 
 // Backend wraps responses in { status: 'success', data: ... }
 interface BackendResponse<T> {
@@ -78,7 +78,7 @@ export const usersApi = {
 // Streakable Items API
 export const streakableApi = {
   getItems: async (): Promise<StreakableItem[]> => {
-    const response = await api.get<BackendResponse<StreakableItem[]>>('/streakable-items');
+    const response = await api.get<BackendResponse<StreakableItem[]>>('/admin/streakable-items');
     return unwrap(response);
   },
 
@@ -158,4 +158,41 @@ export const analyticsApi = {
     const response = await api.get<BackendResponse<AnalyticsData>>('/admin/analytics', { params });
     return unwrap(response);
   },
+};
+
+// Roles API
+export const rolesApi = {
+  getRoles: async (): Promise<AdminRole[]> => {
+    const response = await api.get<BackendResponse<AdminRole[]>>('/admin/roles');
+    return unwrap(response);
+  },
+
+  createRole: async (data: { name: string; description: string; permissions: string[] }): Promise<AdminRole> => {
+    const response = await api.post<BackendResponse<AdminRole>>('/admin/roles', data);
+    return unwrap(response);
+  },
+
+  createAdmin: async (data: any): Promise<User> => {
+    const response = await api.post<BackendResponse<User>>('/admin/admins', data);
+    return unwrap(response);
+  },
+};
+
+// Reports API
+export const reportsApi = {
+  getReports: async (limit: number = 20, offset: number = 0): Promise<Report[]> => {
+    const response = await api.get<BackendResponse<Report[]>>('/admin/reports', { params: { limit, offset } });
+    return unwrap(response);
+  },
+
+  createReport: async (type: string, format: string, start: string, end: string): Promise<Report> => {
+    const response = await api.post<BackendResponse<Report>>('/admin/reports', { type, format, start, end });
+    return unwrap(response);
+  },
+
+  downloadReport: async (id: string, format: string): Promise<Blob | object> => {
+    const responseType = format.toLowerCase() === 'csv' ? 'blob' : 'json';
+    const response = await api.get(`/admin/reports/${id}/download`, { responseType });
+    return response.data;
+  }
 };
