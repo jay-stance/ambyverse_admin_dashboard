@@ -33,68 +33,7 @@ import {
   Flame,
 } from 'lucide-react';
 import { UserAction } from '@/lib/types';
-
-// Mock data
-const mockActions: UserAction[] = [
-  {
-    id: '1',
-    user_id: '1',
-    user_name: 'Sarah Johnson',
-    user_email: 'sarah.j@example.com',
-    action_type: 'pain_logged',
-    action_at: '2024-11-20T14:30:00Z',
-    action_date: '2024-11-20',
-    metadata: { pain_level: 8, is_crisis: true },
-  },
-  {
-    id: '2',
-    user_id: '2',
-    user_name: 'Dr. Michael Chen',
-    user_email: 'dr.chen@hospital.com',
-    action_type: 'user_logged_in',
-    action_at: '2024-11-20T09:00:00Z',
-    action_date: '2024-11-20',
-  },
-  {
-    id: '3',
-    user_id: '3',
-    user_name: 'Jennifer Martinez',
-    user_email: 'jennifer.m@example.com',
-    action_type: 'connection_accepted',
-    action_at: '2024-11-19T16:00:00Z',
-    action_date: '2024-11-19',
-    metadata: { connection_with: 'Sarah Johnson' },
-  },
-  {
-    id: '4',
-    user_id: '4',
-    user_name: 'David Williams',
-    user_email: 'david.w@example.com',
-    action_type: 'task_completed',
-    action_at: '2024-11-19T12:00:00Z',
-    action_date: '2024-11-19',
-    metadata: { task_title: 'Take Hydroxyurea' },
-  },
-  {
-    id: '5',
-    user_id: '1',
-    user_name: 'Sarah Johnson',
-    user_email: 'sarah.j@example.com',
-    action_type: 'streak_updated',
-    action_at: '2024-11-18T10:00:00Z',
-    action_date: '2024-11-18',
-    metadata: { streak_count: 15, item: 'Daily Pain Log' },
-  },
-  {
-    id: '6',
-    user_id: '5',
-    user_name: 'Emily Brown',
-    user_email: 'emily.b@clinic.com',
-    action_type: 'user_logged_in',
-    action_at: '2024-11-18T08:30:00Z',
-    action_date: '2024-11-18',
-  },
-];
+import { activityApi } from '@/lib/api/admin';
 
 const actionConfig: Record<string, { icon: React.ElementType; label: string; color: string }> = {
   pain_logged: { icon: Heart, label: 'Pain Logged', color: 'bg-red-100 text-red-700' },
@@ -118,14 +57,28 @@ function LoadingSkeleton() {
 export default function ActivityLogsPage() {
   const [actions, setActions] = useState<UserAction[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState('all');
 
-  useEffect(() => {
-    setTimeout(() => {
-      setActions(mockActions);
+  const fetchLogs = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      // In a real app with search/filter params, we'd pass them here.
+      // For now, fetching first 100 recent logs.
+      const result = await activityApi.getLogs({ limit: 100 });
+      setActions(result.logs);
+    } catch (err) {
+      console.error('Failed to fetch activity logs:', err);
+      setError('Failed to load activity logs');
+    } finally {
       setLoading(false);
-    }, 500);
+    }
+  };
+
+  useEffect(() => {
+    fetchLogs();
   }, []);
 
   const actionTypes = Array.from(new Set(actions.map(a => a.action_type)));
@@ -150,7 +103,7 @@ export default function ActivityLogsPage() {
 
   const stats = {
     total: actions.length,
-    today: actions.filter(a => a.action_date === new Date().toISOString().split('T')[0]).length,
+    today: actions.filter(a => (a.action_date ? a.action_date : new Date(a.action_at).toISOString().split('T')[0]) === new Date().toISOString().split('T')[0]).length,
     uniqueUsers: new Set(actions.map(a => a.user_id)).size,
   };
 
@@ -219,9 +172,13 @@ export default function ActivityLogsPage() {
             <div className="p-6">
               <LoadingSkeleton />
             </div>
+          ) : error ? (
+            <div className="py-12 text-center text-destructive">
+              {error}
+            </div>
           ) : filteredActions.length === 0 ? (
             <div className="py-12 text-center text-muted-foreground">
-              No activity logs found matching your criteria.
+              {actions.length === 0 ? 'No activity logs found in the system.' : 'No activity logs found matching your criteria.'}
             </div>
           ) : (
             <div className="overflow-x-auto">
@@ -245,7 +202,7 @@ export default function ActivityLogsPage() {
                           <div className="flex items-center gap-2">
                             <User className="h-4 w-4 text-muted-foreground" />
                             <div>
-                              <p className="font-medium">{action.user_name}</p>
+                              <p className="font-medium">{action.user_name || 'Unknown User'}</p>
                               <p className="text-xs text-muted-foreground">{action.user_email}</p>
                             </div>
                           </div>
@@ -258,9 +215,12 @@ export default function ActivityLogsPage() {
                         </TableCell>
                         <TableCell>
                           {action.metadata ? (
-                            <code className="text-xs bg-muted px-2 py-1 rounded">
-                              {JSON.stringify(action.metadata)}
-                            </code>
+                            <div className="max-w-[300px] overflow-hidden text-ellipsis">
+                              <code className="text-xs bg-muted px-2 py-1 rounded">
+                                {JSON.stringify(action.metadata).slice(0, 50)}
+                                {JSON.stringify(action.metadata).length > 50 && '...'}
+                              </code>
+                            </div>
                           ) : (
                             <span className="text-muted-foreground">-</span>
                           )}

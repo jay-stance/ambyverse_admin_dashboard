@@ -134,6 +134,7 @@ export const tasksApi = {
 };
 
 // Activity Logs API (needs backend extension)
+// Activity Logs API
 export const activityApi = {
   getLogs: async (params?: {
     actionType?: string;
@@ -142,9 +143,8 @@ export const activityApi = {
     endDate?: string;
     limit?: number;
     offset?: number;
-  }): Promise<PaginatedResponse<UserAction>> => {
-    // This would need a new backend endpoint
-    const response = await api.get<BackendResponse<PaginatedResponse<UserAction>>>('/admin/activity', { params });
+  }): Promise<{ logs: UserAction[]; total: number; page: number; limit: number }> => {
+    const response = await api.get<BackendResponse<{ logs: UserAction[]; total: number; page: number; limit: number }>>('/admin/activity', { params });
     return unwrap(response);
   },
 };
