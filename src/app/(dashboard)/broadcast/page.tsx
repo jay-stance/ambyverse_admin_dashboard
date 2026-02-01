@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -8,7 +8,8 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   Select,
   SelectContent,
@@ -28,40 +29,19 @@ import {
   Bell,
   Loader2,
   CheckCircle2,
+  Mail,
+  Smartphone,
+  MessageSquare,
+  AlertCircle
 } from 'lucide-react';
 import { Broadcast, BroadcastAudience, BroadcastPriority } from '@/lib/types';
-
-// Mock data
-const mockBroadcasts: Broadcast[] = [
-  {
-    id: '1',
-    title: 'Platform Update - New Features',
-    content: "We're excited to announce new features including enhanced pain tracking and community support tools.",
-    priority: 'medium',
-    audience: 'all',
-    recipient_count: 1247,
-    read_count: 892,
-    sent_at: '2024-11-02T10:00:00Z',
-    created_by: 'admin',
-  },
-  {
-    id: '2',
-    title: 'Crisis Support Resources',
-    content: 'New 24/7 crisis support hotline now available. Call 1-800-SCD-HELP for immediate assistance.',
-    priority: 'high',
-    audience: 'warriors',
-    recipient_count: 1098,
-    read_count: 945,
-    sent_at: '2024-11-08T14:00:00Z',
-    created_by: 'admin',
-  },
-];
+import { broadcastApi, NotificationChannel, RecipientCounts } from '@/lib/api/admin';
 
 const audienceOptions = [
-  { value: 'all', label: 'All Users', icon: Users, count: 1247 },
-  { value: 'warriors', label: 'Warriors Only', icon: Heart, count: 856 },
-  { value: 'guardians', label: 'Parents/Guardians Only', icon: UserCheck, count: 243 },
-  { value: 'caregivers', label: 'Caregivers Only', icon: Stethoscope, count: 148 },
+  { value: 'all', label: 'All Users', icon: Users },
+  { value: 'warriors', label: 'Warriors Only', icon: Heart },
+  { value: 'guardians', label: 'Parents/Guardians Only', icon: UserCheck },
+  { value: 'caregivers', label: 'Caregivers Only', icon: Stethoscope },
 ];
 
 const priorityColors: Record<BroadcastPriority, string> = {
@@ -71,7 +51,13 @@ const priorityColors: Record<BroadcastPriority, string> = {
   urgent: 'bg-red-100 text-red-700',
 };
 
-function BroadcastCard({ broadcast }: { broadcast: Broadcast }) {
+const channelOptions: { value: NotificationChannel; label: string; icon: React.ElementType; description: string }[] = [
+  { value: 'push', label: 'Push Notification', icon: Bell, description: 'Mobile app notifications' },
+  { value: 'email', label: 'Email', icon: Mail, description: 'Email to registered addresses' },
+  { value: 'sms', label: 'SMS', icon: MessageSquare, description: 'Text message (charges apply)' },
+];
+
+function BroadcastCard({ broadcast }: { broadcast: any }) {
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('en-US', {
       month: 'short',
@@ -80,13 +66,17 @@ function BroadcastCard({ broadcast }: { broadcast: Broadcast }) {
     });
   };
 
-  const readPercentage = Math.round((broadcast.read_count / broadcast.recipient_count) * 100);
+  const readPercentage = broadcast.recipient_count > 0 
+    ? Math.round((broadcast.read_count / broadcast.recipient_count) * 100)
+    : 0;
+
+  const channels = broadcast.channels || ['push'];
 
   return (
     <div className="p-4 border rounded-lg bg-card">
       <div className="flex items-start justify-between">
         <h3 className="font-semibold">{broadcast.title}</h3>
-        <Badge className={priorityColors[broadcast.priority]}>
+        <Badge className={priorityColors[broadcast.priority as BroadcastPriority] || priorityColors.medium}>
           {broadcast.priority}
         </Badge>
       </div>
@@ -98,15 +88,20 @@ function BroadcastCard({ broadcast }: { broadcast: Broadcast }) {
         </span>
         <span className="flex items-center gap-1">
           <Send className="h-4 w-4" />
-          {broadcast.recipient_count.toLocaleString()} recipients
+          {broadcast.recipient_count?.toLocaleString() || 0} recipients
         </span>
         <span className="flex items-center gap-1">
           <Eye className="h-4 w-4" />
-          {broadcast.read_count.toLocaleString()} read ({readPercentage}%)
+          {broadcast.read_count?.toLocaleString() || 0} read ({readPercentage}%)
         </span>
         <span className="flex items-center gap-1">
           <Clock className="h-4 w-4" />
           Sent {broadcast.sent_at && formatDate(broadcast.sent_at)}
+        </span>
+        <span className="flex items-center gap-1">
+          {channels.includes('email') && <Mail className="h-4 w-4" />}
+          {channels.includes('push') && <Bell className="h-4 w-4" />}
+          {channels.includes('sms') && <MessageSquare className="h-4 w-4" />}
         </span>
       </div>
     </div>
@@ -118,31 +113,91 @@ export default function BroadcastPage() {
   const [content, setContent] = useState('');
   const [priority, setPriority] = useState<BroadcastPriority>('medium');
   const [audience, setAudience] = useState<BroadcastAudience>('all');
+  const [channels, setChannels] = useState<NotificationChannel[]>(['push']);
   const [sending, setSending] = useState(false);
-  const [sent, setSent] = useState(false);
+  const [success, setSuccess] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
-  const selectedAudience = audienceOptions.find(a => a.value === audience);
+  const [broadcasts, setBroadcasts] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [recipientCounts, setRecipientCounts] = useState<RecipientCounts>({
+    all: 0, warriors: 0, guardians: 0, caregivers: 0
+  });
+
   const charCount = content.length;
   const maxChars = 500;
 
+  useEffect(() => {
+    fetchBroadcasts();
+    fetchRecipientCounts();
+  }, []);
+
+  const fetchBroadcasts = async () => {
+    try {
+      const data = await broadcastApi.getBroadcasts();
+      setBroadcasts(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error('Failed to fetch broadcasts:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchRecipientCounts = async () => {
+    try {
+      const counts = await broadcastApi.getRecipientCounts();
+      setRecipientCounts(counts);
+    } catch (err) {
+      console.error('Failed to fetch recipient counts:', err);
+    }
+  };
+
+  const toggleChannel = (channel: NotificationChannel) => {
+    setChannels(prev => 
+      prev.includes(channel)
+        ? prev.filter(c => c !== channel)
+        : [...prev, channel]
+    );
+  };
+
   const handleSend = async () => {
-    if (!title || !content) return;
+    if (!title || !content || channels.length === 0) {
+      setError('Please fill in all fields and select at least one channel');
+      return;
+    }
     
     setSending(true);
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    setSending(false);
-    setSent(true);
-    
-    // Reset after showing success
-    setTimeout(() => {
+    setSuccess(null);
+    setError(null);
+
+    try {
+      const result = await broadcastApi.sendBroadcast({
+        title,
+        content,
+        audience,
+        channels,
+        priority,
+      });
+
+      setSuccess(`Broadcast sent to ${result.recipientCount} recipients! (Email: ${result.results.email}, Push: ${result.results.push}, SMS: ${result.results.sms})`);
+      
+      // Reset form
       setTitle('');
       setContent('');
       setPriority('medium');
       setAudience('all');
-      setSent(false);
-    }, 2000);
+      setChannels(['push']);
+      
+      // Refresh broadcasts list
+      fetchBroadcasts();
+    } catch (err: any) {
+      setError(err.message || 'Failed to send broadcast');
+    } finally {
+      setSending(false);
+    }
   };
+
+  const selectedCount = recipientCounts[audience as keyof RecipientCounts] || 0;
 
   return (
     <div className="space-y-6">
@@ -158,6 +213,22 @@ export default function BroadcastPage() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
+          {/* Success/Error Messages */}
+          {success && (
+            <Alert className="bg-green-50 text-green-700 border-green-200">
+              <CheckCircle2 className="h-4 w-4" />
+              <AlertTitle>Success</AlertTitle>
+              <AlertDescription>{success}</AlertDescription>
+            </Alert>
+          )}
+          {error && (
+            <Alert variant="destructive">
+              <AlertCircle className="h-4 w-4" />
+              <AlertTitle>Error</AlertTitle>
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
+
           {/* Message Form */}
           <div className="space-y-4">
             <div className="space-y-2">
@@ -185,6 +256,40 @@ export default function BroadcastPage() {
               </p>
             </div>
 
+            {/* Notification Channels */}
+            <div className="space-y-3">
+              <Label>Notification Channels</Label>
+              <div className="flex flex-wrap gap-4">
+                {channelOptions.map((option) => (
+                  <div
+                    key={option.value}
+                    className={`flex items-center gap-3 p-3 rounded-lg border-2 cursor-pointer transition-colors ${
+                      channels.includes(option.value)
+                        ? 'border-primary bg-primary/5'
+                        : 'border-border hover:border-primary/50'
+                    }`}
+                    onClick={() => toggleChannel(option.value)}
+                  >
+                    <Checkbox
+                      checked={channels.includes(option.value)}
+                      onCheckedChange={() => toggleChannel(option.value)}
+                    />
+                    <option.icon className={`h-5 w-5 ${channels.includes(option.value) ? 'text-primary' : 'text-muted-foreground'}`} />
+                    <div>
+                      <p className="font-medium text-sm">{option.label}</p>
+                      <p className="text-xs text-muted-foreground">{option.description}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              {channels.includes('sms') && (
+                <p className="text-xs text-amber-600 flex items-center gap-1">
+                  <AlertCircle className="h-3 w-3" />
+                  SMS charges will apply per recipient
+                </p>
+              )}
+            </div>
+
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Priority Level</Label>
@@ -203,7 +308,7 @@ export default function BroadcastPage() {
               <div className="space-y-2">
                 <Label>Target Audience</Label>
                 <div className="p-3 bg-muted rounded-lg">
-                  <p className="font-medium">{selectedAudience?.count.toLocaleString()} recipients selected</p>
+                  <p className="font-medium">{selectedCount.toLocaleString()} recipients selected</p>
                 </div>
               </div>
             </div>
@@ -228,7 +333,9 @@ export default function BroadcastPage() {
                       }`} />
                       <div>
                         <p className="font-medium">{option.label}</p>
-                        <p className="text-sm text-muted-foreground">{option.count.toLocaleString()} users</p>
+                        <p className="text-sm text-muted-foreground">
+                          {recipientCounts[option.value as keyof RecipientCounts]?.toLocaleString() || 0} users
+                        </p>
                       </div>
                     </div>
                   </button>
@@ -240,7 +347,7 @@ export default function BroadcastPage() {
           {/* Send Button */}
           <Button 
             onClick={handleSend}
-            disabled={!title || !content || sending || sent}
+            disabled={!title || !content || channels.length === 0 || sending}
             className="w-full gap-2"
             size="lg"
           >
@@ -248,11 +355,6 @@ export default function BroadcastPage() {
               <>
                 <Loader2 className="h-4 w-4 animate-spin" />
                 Sending...
-              </>
-            ) : sent ? (
-              <>
-                <CheckCircle2 className="h-4 w-4" />
-                Sent Successfully!
               </>
             ) : (
               <>
@@ -272,36 +374,34 @@ export default function BroadcastPage() {
             Message History
           </CardTitle>
           <CardDescription>
-            Previously sent and scheduled broadcast messages
+            Previously sent broadcast messages
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <Tabs defaultValue="sent">
-            <TabsList>
-              <TabsTrigger value="sent">Sent ({mockBroadcasts.length})</TabsTrigger>
-              <TabsTrigger value="scheduled">Scheduled (0)</TabsTrigger>
-            </TabsList>
-
-            <TabsContent value="sent" className="mt-4 space-y-4">
-              {mockBroadcasts.map(broadcast => (
+          {loading ? (
+            <div className="text-center py-8">
+              <Loader2 className="h-6 w-6 animate-spin mx-auto mb-2" />
+              Loading broadcasts...
+            </div>
+          ) : broadcasts.length === 0 ? (
+            <div className="py-12 text-center text-muted-foreground">
+              No broadcasts sent yet.
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {broadcasts.map(broadcast => (
                 <BroadcastCard key={broadcast.id} broadcast={broadcast} />
               ))}
-            </TabsContent>
-
-            <TabsContent value="scheduled" className="mt-4">
-              <div className="py-12 text-center text-muted-foreground">
-                No scheduled broadcasts.
-              </div>
-            </TabsContent>
-          </Tabs>
+            </div>
+          )}
         </CardContent>
       </Card>
 
-      {/* Push Notification Info */}
+      {/* Channel Info */}
       <Alert>
         <Bell className="h-4 w-4" />
         <AlertDescription>
-          <strong>Push Notifications:</strong> Broadcast messages are delivered as push notifications to the mobile app and in-app notification center. High and urgent priority messages generate immediate alerts.
+          <strong>Notification Channels:</strong> Push notifications are delivered to mobile apps. Emails are sent to registered email addresses. SMS messages are sent to phone numbers (charges apply per message).
         </AlertDescription>
       </Alert>
     </div>

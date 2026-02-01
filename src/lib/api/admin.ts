@@ -196,3 +196,49 @@ export const reportsApi = {
     return response.data;
   }
 };
+
+// Broadcast API
+export type NotificationChannel = 'email' | 'push' | 'sms';
+
+export interface BroadcastRequest {
+  title: string;
+  content: string;
+  audience: 'all' | 'warriors' | 'guardians' | 'caregivers';
+  channels: NotificationChannel[];
+  priority: 'low' | 'medium' | 'high' | 'urgent';
+}
+
+export interface BroadcastResult {
+  message: string;
+  recipientCount: number;
+  results: {
+    email: number;
+    push: number;
+    sms: number;
+  };
+}
+
+export interface RecipientCounts {
+  all: number;
+  warriors: number;
+  guardians: number;
+  caregivers: number;
+}
+
+export const broadcastApi = {
+  getBroadcasts: async (limit: number = 20): Promise<any[]> => {
+    const response = await api.get<BackendResponse<any[]>>('/admin/broadcasts', { params: { limit } });
+    return unwrap(response);
+  },
+
+  sendBroadcast: async (data: BroadcastRequest): Promise<BroadcastResult> => {
+    const response = await api.post<BackendResponse<BroadcastResult>>('/admin/broadcasts', data);
+    return unwrap(response);
+  },
+
+  getRecipientCounts: async (): Promise<RecipientCounts> => {
+    const response = await api.get<BackendResponse<RecipientCounts>>('/admin/broadcasts/counts');
+    return unwrap(response);
+  },
+};
+
