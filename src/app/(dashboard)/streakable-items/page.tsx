@@ -121,7 +121,7 @@ export default function StreakableItemsPage() {
   const [items, setItems] = useState<(StreakableItem & { adoption_count?: number })[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
-  const [creating, setCreating] = useState(false);
+  const [itemToDelete, setItemToDelete] = useState<string | null>(null);
 
   const {
     register,
@@ -165,9 +165,20 @@ export default function StreakableItemsPage() {
     }
   };
 
-  const handleDelete = (id: string) => {
-    setItems((prev) => prev.filter((item) => item.id !== id));
+  const cancelDelete = () => {
+    setItemToDelete(null);
   };
+
+  const performDelete = () => {
+    if (itemToDelete) {
+      setItems((prev) => prev.filter((item) => item.id !== itemToDelete));
+      setItemToDelete(null);
+    }
+  };
+  
+  const handleDeleteClick = (id: string) => {
+    setItemToDelete(id);
+  }
 
   const stats = {
     total: items?.length || 0,
@@ -226,7 +237,7 @@ export default function StreakableItemsPage() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {items.map((item) => (
-            <ItemCard key={item.id} item={item} onDelete={handleDelete} />
+            <ItemCard key={item.id} item={item} onDelete={handleDeleteClick} />
           ))}
         </div>
       )}
@@ -292,6 +303,26 @@ export default function StreakableItemsPage() {
               </Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+      
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={!!itemToDelete} onOpenChange={(open) => !open && cancelDelete()}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Delete Item</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete this streakable item? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="mt-4">
+            <Button variant="outline" onClick={cancelDelete}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={performDelete}>
+              Delete
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

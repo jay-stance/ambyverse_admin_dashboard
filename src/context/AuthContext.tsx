@@ -28,8 +28,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       
       if (storedUser && accessToken) {
         const parsedUser = JSON.parse(storedUser);
+        
         // Check if user is admin
         if (parsedUser.role === 'admin') {
+          // Check for stale permissions (fix for production issue)
+          if (!parsedUser.permissions || !Array.isArray(parsedUser.permissions)) {
+             console.warn('Admin user missing permissions. Forcing logout to refresh session.');
+             authApi.logout();
+             setUser(null);
+             localStorage.removeItem('user');
+             localStorage.removeItem('accessToken');
+             localStorage.removeItem('refreshToken');
+             return;
+          }
           setUser(parsedUser);
         } else {
           // Non-admin user, clear session
@@ -57,6 +68,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // Check if user is admin
       if (response.user.role !== 'admin') {
         throw new Error('Access denied. Admin privileges required.');
+      }
+
+      // Ensure permissions are present
+      if (!response.user.permissions || response.user.permissions.length === 0) {
+         // Fallback for Super Admin if backend somehow missed it, though backend service fixes this.
+         console.warn('Login success but no permissions found. This might be a super admin without explicit role.');
       }
       
       // Store tokens and user
