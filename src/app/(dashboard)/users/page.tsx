@@ -43,7 +43,7 @@ import {
   Ban,
 } from 'lucide-react';
 import { User, Role } from '@/lib/types';
-import { adminApi } from '@/lib/api/admin';
+import { adminApi, usersApi } from '@/lib/api/admin';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -73,7 +73,7 @@ const createAdminSchema = z.object({
 
 type CreateAdminFormData = z.infer<typeof createAdminSchema>;
 
-function UserCard({ user }: { user: User }) {
+function UserCard({ user, onSuspend, onEdit }: { user: User; onSuspend: (user: User) => void; onEdit: (user: User) => void }) {
   const getInitials = (name: string) => {
     return name
       .split(' ')
@@ -124,14 +124,14 @@ function UserCard({ user }: { user: User }) {
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            <DropdownMenuItem className="flex items-center gap-2">
-              <Eye className="h-4 w-4" /> View Details
-            </DropdownMenuItem>
-            <DropdownMenuItem className="flex items-center gap-2">
+            <DropdownMenuItem className="flex items-center gap-2" onClick={() => onEdit(user)}>
               <Edit className="h-4 w-4" /> Edit User
             </DropdownMenuItem>
-            <DropdownMenuItem className="flex items-center gap-2 text-destructive">
-              <Ban className="h-4 w-4" /> Suspend User
+            <DropdownMenuItem 
+              className="flex items-center gap-2 text-destructive" 
+              onClick={() => onSuspend(user)}
+            >
+              <Ban className="h-4 w-4" /> {user.status === 'suspended' ? 'Reactivate User' : 'Suspend User'}
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -189,6 +189,11 @@ export default function UsersPage() {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [editName, setEditName] = useState('');
+  const [editEmail, setEditEmail] = useState('');
+  const [editRole, setEditRole] = useState('');
+  const [saving, setSaving] = useState(false);
 
   const {
     register,
@@ -237,6 +242,41 @@ export default function UsersPage() {
       console.error('Failed to create admin:', error);
     } finally {
       setCreating(false);
+    }
+  };
+
+  const handleSuspend = async (user: User) => {
+    const newStatus = user.status === 'suspended' ? 'active' : 'suspended';
+    try {
+      const updated = await usersApi.updateUser(user.id, { status: newStatus } as any);
+      setUsers((prev) => prev.map((u) => u.id === user.id ? { ...u, status: updated.status || newStatus } : u));
+    } catch (error) {
+      console.error('Failed to update user status:', error);
+    }
+  };
+
+  const handleEdit = (user: User) => {
+    setEditingUser(user);
+    setEditName(user.full_name);
+    setEditEmail(user.email);
+    setEditRole(user.role);
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingUser) return;
+    setSaving(true);
+    try {
+      const updated = await usersApi.updateUser(editingUser.id, { 
+        full_name: editName, 
+        email: editEmail, 
+        role: editRole 
+      } as any);
+      setUsers((prev) => prev.map((u) => u.id === editingUser.id ? { ...u, ...updated } : u));
+      setEditingUser(null);
+    } catch (error) {
+      console.error('Failed to update user:', error);
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -313,7 +353,7 @@ export default function UsersPage() {
       ) : (
         <div className="grid gap-4">
           {filteredUsers.map((user) => (
-            <UserCard key={user.id} user={user} />
+            <UserCard key={user.id} user={user} onSuspend={handleSuspend} onEdit={handleEdit} />
           ))}
         </div>
       )}
@@ -382,6 +422,51 @@ export default function UsersPage() {
               </Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit User Dialog */}
+      <Dialog open={!!editingUser} onOpenChange={(open) => !open && setEditingUser(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Edit User</DialogTitle>
+            <DialogDescription>
+              Update user details.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="editName">Full Name</Label>
+              <Input id="editName" value={editName} onChange={(e) => setEditName(e.target.value)} />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="editEmail">Email</Label>
+              <Input id="editEmail" type="email" value={editEmail} onChange={(e) => setEditEmail(e.target.value)} />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="editRole">Role</Label>
+              <Select value={editRole} onValueChange={setEditRole}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select role" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="warrior">Warrior</SelectItem>
+                  <SelectItem value="guardian">Guardian</SelectItem>
+                  <SelectItem value="caregiver">Caregiver</SelectItem>
+                  <SelectItem value="admin">Admin</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setEditingUser(null)}>
+              Cancel
+            </Button>
+            <Button onClick={handleSaveEdit} disabled={saving}>
+              {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Save Changes
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

@@ -122,6 +122,7 @@ export default function StreakableItemsPage() {
   const [loading, setLoading] = useState(true);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [itemToDelete, setItemToDelete] = useState<string | null>(null);
+  const [creating, setCreating] = useState(false);
 
   const {
     register,
@@ -169,10 +170,16 @@ export default function StreakableItemsPage() {
     setItemToDelete(null);
   };
 
-  const performDelete = () => {
+  const performDelete = async () => {
     if (itemToDelete) {
-      setItems((prev) => prev.filter((item) => item.id !== itemToDelete));
-      setItemToDelete(null);
+      try {
+        await streakableApi.deleteItem(itemToDelete);
+        setItems((prev) => prev.filter((item) => item.id !== itemToDelete));
+      } catch (error) {
+        console.error('Failed to delete item:', error);
+      } finally {
+        setItemToDelete(null);
+      }
     }
   };
   

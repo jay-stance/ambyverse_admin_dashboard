@@ -60,7 +60,7 @@ export const usersApi = {
   },
 
   updateUser: async (id: string, data: Partial<User>): Promise<User> => {
-    const response = await api.patch<BackendResponse<User>>(`/users/${id}`, data);
+    const response = await api.patch<BackendResponse<User>>(`/admin/users/${id}`, data);
     return unwrap(response);
   },
 
@@ -89,6 +89,11 @@ export const streakableApi = {
     interval_days?: number;
   }): Promise<StreakableItem> => {
     const response = await api.post<BackendResponse<StreakableItem>>('/streakable-items', data);
+    return unwrap(response);
+  },
+
+  deleteItem: async (id: string): Promise<StreakableItem> => {
+    const response = await api.delete<BackendResponse<StreakableItem>>(`/admin/streakable-items/${id}`);
     return unwrap(response);
   },
 };
