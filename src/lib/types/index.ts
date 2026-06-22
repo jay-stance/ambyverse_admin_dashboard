@@ -14,6 +14,7 @@ export type UserStatus = 'active' | 'inactive' | 'suspended';
 export interface User {
   id: string;
   full_name: string;
+  username?: string;
   email: string;
   phone_number?: string;
   emergency_contact?: string;

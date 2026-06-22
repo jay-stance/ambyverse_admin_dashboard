@@ -107,6 +107,11 @@ function UserCard({ user, onSuspend, onEdit }: { user: User; onSuspend: (user: U
                 <BadgeCheck className="h-4 w-4 text-blue-500" />
               )}
             </div>
+            {user.username && (
+              <p className="text-xs text-muted-foreground flex items-center gap-1">
+                @{user.username}
+              </p>
+            )}
             <div className="flex flex-wrap gap-2">
               <Badge variant="outline" className={roleColors[user.role]}>
                 {user.role === 'warrior' ? '❤️' : user.role === 'caregiver' ? '🏥' : '👤'} {user.role}
@@ -183,10 +188,15 @@ function LoadingSkeleton() {
 
 export default function UsersPage() {
   const [users, setUsers] = useState<User[]>([]);
+  const [totalUsers, setTotalUsers] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [roleFilter, setRoleFilter] = useState<string>('all');
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [page, setPage] = useState(1);
+  const limit = 20;
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [creating, setCreating] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
@@ -204,31 +214,70 @@ export default function UsersPage() {
     resolver: zodResolver(createAdminSchema),
   });
 
+  // Debounce search input
   useEffect(() => {
-    const fetchUsers = async () => {
-      try {
-        const data = await adminApi.getUsers({
-          role: roleFilter !== 'all' ? roleFilter : undefined,
-          search: search || undefined,
-        });
-        setUsers(data.users);
-      } catch (err) {
-        console.error('Failed to fetch users', err);
-      } finally {
-        setLoading(false);
-      }
-    };
+    const timer = setTimeout(() => {
+      setDebouncedSearch(search);
+      setPage(1); // Reset to first page on new search
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [search]);
 
+  // Handle role filter change
+  const handleRoleFilterChange = (value: string) => {
+    setRoleFilter(value);
+    setPage(1); // Reset to first page on filter change
+  };
+
+  // Handle status filter change
+  const handleStatusFilterChange = (value: string) => {
+    setStatusFilter(value);
+    setPage(1); // Reset to first page on filter change
+  };
+
+  const fetchUsers = async (isLoadMore: boolean = false) => {
+    if (isLoadMore) {
+      setLoadingMore(true);
+    } else {
+      setLoading(true);
+    }
+    
+    try {
+      const data = await adminApi.getUsers({
+        role: roleFilter !== 'all' ? roleFilter : undefined,
+        search: debouncedSearch || undefined,
+        limit,
+        offset: (isLoadMore ? page : 0) * limit,
+      });
+
+      if (isLoadMore) {
+        setUsers((prev) => [...prev, ...data.users]);
+        setPage((prev) => prev + 1);
+      } else {
+        setUsers(data.users);
+        setPage(1);
+      }
+      setTotalUsers(data.total);
+    } catch (err) {
+      console.error('Failed to fetch users', err);
+    } finally {
+      setLoading(false);
+      setLoadingMore(false);
+    }
+  };
+
+  useEffect(() => {
     fetchUsers();
-  }, [roleFilter, search]);
+  }, [roleFilter, debouncedSearch]);
 
   const filteredUsers = users.filter((user) => {
-    const matchesSearch = 
-      user.full_name.toLowerCase().includes(search.toLowerCase()) ||
-      user.email.toLowerCase().includes(search.toLowerCase());
-    const matchesRole = roleFilter === 'all' || user.role === roleFilter;
+    // Role and Search are now handled server-side, 
+    // but status filter is still client-side in this specific implementation 
+    // because the backend list doesn't explicitly filter by status yet 
+    // (though I could easily add it to the backend too if needed).
+    // Let's keep it client-side for status for now as per dashboard requirements.
     const matchesStatus = statusFilter === 'all' || user.status === statusFilter;
-    return matchesSearch && matchesRole && matchesStatus;
+    return matchesStatus;
   });
 
   const onCreateAdmin = async (data: CreateAdminFormData) => {
@@ -310,7 +359,7 @@ export default function UsersPage() {
                 className="pl-10"
               />
             </div>
-            <Select value={roleFilter} onValueChange={setRoleFilter}>
+            <Select value={roleFilter} onValueChange={handleRoleFilterChange}>
               <SelectTrigger className="w-full sm:w-40">
                 <SelectValue placeholder="All Roles" />
               </SelectTrigger>
@@ -322,7 +371,7 @@ export default function UsersPage() {
                 <SelectItem value="admin">Admins</SelectItem>
               </SelectContent>
             </Select>
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <Select value={statusFilter} onValueChange={handleStatusFilterChange}>
               <SelectTrigger className="w-full sm:w-40">
                 <SelectValue placeholder="All Status" />
               </SelectTrigger>
@@ -355,6 +404,27 @@ export default function UsersPage() {
           {filteredUsers.map((user) => (
             <UserCard key={user.id} user={user} onSuspend={handleSuspend} onEdit={handleEdit} />
           ))}
+        </div>
+      )}
+
+      {/* Pagination / Load More */}
+      {!loading && users.length < totalUsers && (
+        <div className="flex justify-center mt-8">
+          <Button 
+            variant="outline" 
+            onClick={() => fetchUsers(true)} 
+            disabled={loadingMore}
+            className="px-8"
+          >
+            {loadingMore ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Loading...
+              </>
+            ) : (
+              'Load More'
+            )}
+          </Button>
         </div>
       )}
 
