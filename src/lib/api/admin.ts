@@ -85,8 +85,12 @@ export const streakableApi = {
   createItem: async (data: {
     title: string;
     description?: string;
+    tracking_style?: string;
     frequency_per_day?: number;
     interval_days?: number;
+    target_count?: number;
+    unit_label?: string;
+    slots?: string[];
   }): Promise<StreakableItem> => {
     const response = await api.post<BackendResponse<StreakableItem>>('/streakable-items', data);
     return unwrap(response);
@@ -97,6 +101,7 @@ export const streakableApi = {
     return unwrap(response);
   },
 };
+
 
 // Pain Logs API
 export const painLogsApi = {
