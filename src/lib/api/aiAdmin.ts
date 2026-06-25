@@ -38,6 +38,12 @@ export interface AiOverview {
   total_warriors: number; consented_warriors: number; active_personas: number;
   conversations: number; assistant_messages: number; flagged_messages: number;
   escalations: number; violations: number; open_signals: number;
+  tokens_this_month: number;
+}
+
+export interface AiUsage {
+  month_total: number;
+  top_users: { user_id: string; full_name: string | null; total: number; calls: number }[];
 }
 
 export interface AiAuditEvent { id: string; user_id: string; full_name?: string; purpose: string; data_scope: any; created_at: string; }
@@ -50,6 +56,7 @@ export const aiAdminApi = {
   setActive: async (id: string, active: boolean): Promise<void> => { await api.patch(`/admin/ai/personas/${id}/active`, { active }); },
   setDefault: async (id: string): Promise<void> => { await api.post(`/admin/ai/personas/${id}/default`); },
   overview: async (): Promise<AiOverview> => unwrap(await api.get<BackendResponse<AiOverview>>('/admin/ai/overview')),
+  usage: async (): Promise<AiUsage> => unwrap(await api.get<BackendResponse<AiUsage>>('/admin/ai/usage')),
   audit: async (): Promise<{ events: AiAuditEvent[]; flagged: AiFlaggedMessage[] }> =>
     unwrap(await api.get<BackendResponse<{ events: AiAuditEvent[]; flagged: AiFlaggedMessage[] }>>('/admin/ai/audit')),
 };

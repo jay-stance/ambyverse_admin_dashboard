@@ -9,13 +9,18 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import {
   Sparkles, Plus, MoreVertical, Star, Pencil, Power, ShieldAlert, Users2, MessagesSquare,
-  Flag, Siren, RefreshCw, BellRing,
+  Flag, Siren, RefreshCw, Coins,
 } from 'lucide-react';
-import { aiAdminApi, AiPersona, AiOverview, AiAuditEvent, AiFlaggedMessage } from '@/lib/api/aiAdmin';
+import { aiAdminApi, AiPersona, AiOverview, AiAuditEvent, AiFlaggedMessage, AiUsage } from '@/lib/api/aiAdmin';
 import { PersonaEditor } from '@/components/ai/PersonaEditor';
 
 function fmtDate(s: string) {
   return new Date(s).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+}
+function fmtNum(n: number) {
+  if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + 'M';
+  if (n >= 1_000) return (n / 1_000).toFixed(1) + 'K';
+  return String(n);
 }
 
 // ── Persona card ────────────────────────────────────────────────────────────────
@@ -95,6 +100,7 @@ export default function AiCompanionPage() {
   const [personas, setPersonas] = useState<AiPersona[]>([]);
   const [overview, setOverview] = useState<AiOverview | null>(null);
   const [audit, setAudit] = useState<{ events: AiAuditEvent[]; flagged: AiFlaggedMessage[] }>({ events: [], flagged: [] });
+  const [usage, setUsage] = useState<AiUsage | null>(null);
   const [loading, setLoading] = useState(true);
   const [editorOpen, setEditorOpen] = useState(false);
   const [editing, setEditing] = useState<AiPersona | null>(null);
@@ -102,8 +108,10 @@ export default function AiCompanionPage() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [p, o, a] = await Promise.all([aiAdminApi.listPersonas(), aiAdminApi.overview(), aiAdminApi.audit()]);
-      setPersonas(p); setOverview(o); setAudit(a);
+      const [p, o, a, u] = await Promise.all([
+        aiAdminApi.listPersonas(), aiAdminApi.overview(), aiAdminApi.audit(), aiAdminApi.usage(),
+      ]);
+      setPersonas(p); setOverview(o); setAudit(a); setUsage(u);
     } catch (e) { console.error(e); } finally { setLoading(false); }
   }, []);
   useEffect(() => { load(); }, [load]);
@@ -170,11 +178,32 @@ export default function AiCompanionPage() {
           {loading || !overview ? (
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">{[...Array(4)].map((_, i) => <Skeleton key={i} className="h-28 rounded-xl" />)}</div>
           ) : (
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              <Stat icon={Users2} label="Warriors opted in" value={`${overview.consented_warriors}/${overview.total_warriors}`} sub={`${consentPct}% consent rate`} />
-              <Stat icon={Sparkles} label="Active personas" value={overview.active_personas} />
-              <Stat icon={MessagesSquare} label="Conversations" value={overview.conversations} sub={`${overview.assistant_messages} AI replies`} />
-              <Stat icon={BellRing} label="Open signals" value={overview.open_signals} />
+            <div className="space-y-5">
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                <Stat icon={Users2} label="Warriors opted in" value={`${overview.consented_warriors}/${overview.total_warriors}`} sub={`${consentPct}% consent rate`} />
+                <Stat icon={Coins} label="Tokens this month" value={fmtNum(overview.tokens_this_month)} sub={`${overview.assistant_messages} AI replies`} />
+                <Stat icon={MessagesSquare} label="Conversations" value={overview.conversations} />
+                <Stat icon={Sparkles} label="Active personas" value={overview.active_personas} sub={`${overview.open_signals} open signals`} />
+              </div>
+
+              {usage && usage.top_users.length > 0 && (
+                <Card>
+                  <CardHeader><CardTitle className="text-base">Top token usage this month</CardTitle></CardHeader>
+                  <CardContent>
+                    <div className="divide-y">
+                      {usage.top_users.map((u) => (
+                        <div key={u.user_id} className="py-2.5 flex items-center justify-between gap-3">
+                          <span className="text-sm truncate">{u.full_name || `User ${u.user_id}`}</span>
+                          <div className="flex items-center gap-4 shrink-0">
+                            <span className="text-xs text-muted-foreground">{u.calls} calls</span>
+                            <span className="text-sm font-medium tabular-nums">{fmtNum(u.total)} tokens</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
             </div>
           )}
         </TabsContent>
