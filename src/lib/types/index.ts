@@ -14,6 +14,7 @@ export type UserStatus = 'active' | 'inactive' | 'suspended';
 export interface User {
   id: string;
   full_name: string;
+  username?: string;
   email: string;
   phone_number?: string;
   emergency_contact?: string;
@@ -122,16 +123,23 @@ export interface TaskRequest {
 }
 
 // Streakable Types
+export type TrackingStyle = 'once' | 'scheduled' | 'fill' | 'prn';
+
 export interface StreakableItem {
   id: string;
   title: string;
   description?: string;
   frequency_per_day: number;
   interval_days: number;
+  tracking_style: TrackingStyle;
+  target_count?: number | null;
+  unit_label?: string | null;
+  slots?: string[] | null;
   adoption_count?: number;
   created_at: string;
   updated_at: string;
 }
+
 
 // User Action Types
 export interface UserAction {

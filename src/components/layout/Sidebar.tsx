@@ -19,6 +19,7 @@ import {
   History,
   Settings,
   Shield,
+  Sparkles,
   X,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -43,6 +44,7 @@ const management = [
   { name: 'Tasks', href: '/tasks', icon: ClipboardList },
   { name: 'Pain Logs', href: '/pain-logs', icon: Activity },
   { name: 'Streakable Items', href: '/streakable-items', icon: Flame },
+  { name: 'AI Companion', href: '/ai-companion', icon: Sparkles },
   { name: 'Activity Logs', href: '/activity-logs', icon: History },
 ];
 
@@ -94,7 +96,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
 
   const filteredManagement = management.filter(item => {
     if (item.name === 'Connections' || item.name === 'Tasks') return hasPermission('manage_users');
-    if (item.name === 'Streakable Items') return hasPermission('manage_content');
+    if (item.name === 'Streakable Items' || item.name === 'AI Companion') return hasPermission('manage_content');
     if (item.name === 'Pain Logs' || item.name === 'Activity Logs') return hasPermission('view_logs');
     return true;
   });

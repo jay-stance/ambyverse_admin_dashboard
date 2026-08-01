@@ -1,4 +1,4 @@
-# Admin Dashboard - Sickle Cell Platform
+# AmbleVerse Admin Dashboard - Sickle Cell Platform
 
 A comprehensive admin dashboard for managing the Sickle Cell Platform, built with Next.js 15, TypeScript, Tailwind CSS, and Shadcn UI components.
 
